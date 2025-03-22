@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>วีรบุรุษพิชิตจอมมาร</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background-color: #222; color: white; }
+        #game { max-width: 600px; margin: auto; background: #333; padding: 20px; border-radius: 10px; }
+        input { width: 100%; padding: 10px; margin-top: 10px; }
+        button { margin-top: 10px; padding: 10px; background: #444; color: white; border: none; cursor: pointer; }
+        button:hover { background: #666; }
+        #inventoryList { margin-top: 20px; padding: 10px; background-color: #444; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div id="game">
+        <p id="story"></p>
+        <input type="text" id="playerInput" placeholder="พิมพ์คำตอบของคุณ...">
+        <button onclick="handleInput()">ยืนยัน</button>
+        <div id="inventoryList"></div> <!-- ช่องที่จะแสดงรายการของในกระเป๋า -->
+    </div>
+    
+    <script>
+        const gameData = {
+            start: {
+                text: "เรย์ลันเป็นนักดาบหนุ่มที่ถูกเลือกจากดาบศักดิ์สิทธิ์ เขาต้องเดินทางไปปราบจอมมารบาโลกราฟ คุณต้องการทำอะไร? (เดินทาง/เตรียมตัว)",
+                options: { "เดินทาง": "needSword", "เตรียมตัว": "prepare" }
+            },
+            prepare: {
+                text: "เรย์ลันเตรียมเสบียงและฝึกฝนก่อนออกเดินทาง เขาได้เสบียงและดาบสำรอง (เดินทาง)",
+                options: { "เดินทาง": "needSword" },
+                addItems: ["เสบียง", "ดาบสำรอง"]
+            },
+            needSword: {
+                text: "ก่อนออกเดินทาง เรย์ลันต้องหยิบดาบจากกระเป๋า (เปิดกระเป๋า)",
+                options: { "เปิดกระเป๋า": "pickSword" }
+            },
+            pickSword: {
+                text: "เรย์ลันหยิบดาบขึ้นมาเตรียมพร้อมสำหรับการต่อสู้ (ออกเดินทาง)",
+                options: { "ออกเดินทาง": "forest" },
+                removeItems: ["ดาบสำรอง"],  // ลบ "ดาบสำรอง" ออกจากกระเป๋า
+                addItems: ["ดาบในมือ"] // เพิ่ม "ดาบในมือ" เมื่อเลือกหยิบดาบ
+            },
+            forest: {
+                text: "ระหว่างทาง เรย์ลันพบกับหมาป่าอสูร หรือเขาจะไปหาของในป่า? (สู้/หนี/หาของในป่า/เปิดกระเป๋า)",
+                options: { "สู้": "checkSword", "หนี": "runWolf", "หาของในป่า": "findSupplies", "เปิดกระเป๋า": "inventoryCheck" }
+            },
+            checkSword: {
+                text: "เรย์ลันต้องมีดาบในมือก่อนต่อสู้ (เปิดกระเป๋าเพื่อหยิบดาบ)",
+                options: { "เปิดกระเป๋า": "pickSwordFight" }
+            },
+            pickSwordFight: {
+                text: "เรย์ลันหยิบดาบขึ้นมาเตรียมพร้อม (สู้)",
+                options: { "สู้": "fightWolf" },
+                removeItems: ["ดาบสำรอง"],
+                addItems: ["ดาบในมือ"]
+            },
+            fightWolf: {
+                text: "เรย์ลันฟันดาบเข้าใส่หมาป่า มันล้มลงและเขาเดินทางต่อไปยังปราสาทจอมมาร (เดินทางต่อ)",
+                options: { "เดินทางต่อ": "castle" }
+            },
+            eatFood: {
+                text: "เรย์ลันกินอาหารและฟื้นฟูพลัง (เลือกใหม่)",
+                options: { "เลือกใหม่": "castle" },
+                removeItems: ["เสบียง"]
+            },
+            runWolf: {
+                text: "เรย์ลันหนีจากหมาป่าและสูญเสียเสบียงบางส่วน (เดินทางต่อ)",
+                options: { "เดินทางต่อ": "castle" },
+                removeItems: ["เสบียง"]
+            },
+            findSupplies: {
+                text: "เรย์ลันเจอถุงเสบียงที่ตกอยู่ในป่า เขาจึงเก็บมันใส่กระเป๋า (เลือกใหม่)",
+                options: { "เลือกใหม่": "forest" },
+                addItems: ["เสบียง"]
+            },
+            inventoryCheck: {
+                text: "คุณเปิดกระเป๋าและตรวจสอบไอเท็มของคุณ (เลือกใหม่)",
+                options: { "เลือกใหม่": "forest" }
+            },
+            castle: {
+                text: "เมื่อถึงปราสาทจอมมาร เรย์ลันเผชิญหน้ากับบาโลกราฟ จอมมารหัวเราะเยาะและโจมตีเขา เรย์ลันจะโจมตีกลับหรือป้องกัน? (โจมตี/ป้องกัน/ใช้ดาบศักดิ์สิทธิ์/กินอาหาร/เปิดกระเป๋า)",
+                options: { "โจมตี": "attackDemon", "ป้องกัน": "defendDemon", "ใช้ดาบศักดิ์สิทธิ์": "victory", "กินอาหาร": "eatFood", "เปิดกระเป๋า": "inventoryCheck" }
+            },
+            attackDemon: {
+                text: "เรย์ลันโจมตี แต่พลังของจอมมารแข็งแกร่ง (ลองอีกครั้ง/ใช้ดาบศักดิ์สิทธิ์)",
+                options: { "ลองอีกครั้ง": "fail", "ใช้ดาบศักดิ์สิทธิ์": "victory" }
+            },
+            defendDemon: {
+                text: "เรย์ลันตั้งรับจนพบช่องว่างและใช้ดาบศักดิ์สิทธิ์โจมตี!",
+                options: { "ใช้พลังของดาบศักดิ์สิทธิ์": "victory" }
+            },
+            fail: {
+                text: "เรย์ลันพ่ายแพ้ คุณต้องการลองใหม่ไหม? (ใช่/ไม่)",
+                options: { "ใช่": "start", "ไม่": "end" }
+            },
+            victory: {
+                text: "เรย์ลันใช้พลังของดาบศักดิ์สิทธิ์และกำจัดจอมมาร บาโลกราฟสลายไป อาณาจักรกลับมาสงบสุขอีกครั้ง!",
+                options: { "เริ่มใหม่": "start" }
+            },
+            end: {
+                text: "เรื่องราวของเรย์ลันจบลงที่นี่...",
+                options: {}
+            },
+            secretCave: {
+                text: "ระหว่างทาง เรย์ลันพบทางลับไปยังถ้ำลับที่มีสมบัติ hidden ไว้ เขาตัดสินใจไปสำรวจ (สำรวจ/กลับ)",
+                options: { "สำรวจ": "treasure", "กลับ": "castle" }
+            },
+            treasure: {
+                text: "เรย์ลันเจอสมบัติในถ้ำและได้รับค้อนศักดิ์สิทธิ์! (กลับ)",
+                options: { "กลับ": "castle" },
+                addItems: ["ค้อนศักดิ์สิทธิ์"]
+            }
+        };
+
+        let currentScene = "start";
+        let inventory = [];
+
+        // ฟังก์ชันสำหรับการจัดการคำสั่งของผู้เล่น
+        function handleInput() {
+            let input = document.getElementById("playerInput").value.trim();
+            if (gameData[currentScene].options[input]) {
+                currentScene = gameData[currentScene].options[input];
+                showStory();
+            } else if (input === "เปิดกระเป๋า") {
+                showInventory();
+            } else if (input === "กินอาหาร" && inventory.includes("เสบียง")) {
+                useFood();
+            } else if (input === "สำรวจ" && currentScene === "secretCave") {
+                goToTreasure();
+            } else {
+                alert("ตัวเลือกไม่ถูกต้อง ลองใหม่อีกครั้ง");
+            }
+        }
+
+        // ฟังก์ชันสำหรับการแสดงเนื้อเรื่อง
+        function showStory() {
+            const storyElement = document.getElementById("story");
+            storyElement.textContent = gameData[currentScene].text;
+
+            // เพิ่มไอเท็มที่ได้รับจากสถานการณ์
+            if (gameData[currentScene].addItems) {
+                gameData[currentScene].addItems.forEach(item => {
+                    inventory.push(item);
+                });
+            }
+
+            // ลบไอเท็มที่ใช้ไปจากกระเป๋า
+            if (gameData[currentScene].removeItems) {
+                gameData[currentScene].removeItems.forEach(item => {
+                    const index = inventory.indexOf(item);
+                    if (index !== -1) inventory.splice(index, 1);
+                });
+            }
+        }
+
+        // ฟังก์ชันสำหรับแสดงรายการของในกระเป๋า
+        function showInventory() {
+            let inventoryList = inventory.length ? inventory.join(", ") : "ไม่มีสิ่งของในกระเป๋า";
+            document.getElementById("inventoryList").textContent = "ของในกระเป๋าของคุณ: " + inventoryList;
+        }
+
+        // ฟังก์ชันสำหรับการใช้เสบียงในระหว่างการต่อสู้
+        function useFood() {
+            // ฟื้นฟูพลังในระหว่างการต่อสู้
+            alert("เรย์ลันกินเสบียงและฟื้นฟูพลัง!");
+            inventory = inventory.filter(item => item !== "เสบียง"); // ลบเสบียงออกจากกระเป๋า
+            showInventory(); // แสดงกระเป๋าใหม่
+        }
+
+        function goToTreasure() {
+            // สมบัติเช่น ค้อนศักดิ์สิทธิ์
+            alert("เรย์ลันพบสมบัติเช่น ค้อนศักดิ์สิทธิ์!");
+            showInventory();
+        }
+
+        showStory();
+    </script>
+</body>
+</html>
